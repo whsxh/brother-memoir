@@ -170,6 +170,8 @@
     }
   }
   const scheduleSave = () => {
+    // 本机镜像立刻写：用户可能还没离开输入框就刷新页面
+    persistLocal();
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveNow, 700);
   };
