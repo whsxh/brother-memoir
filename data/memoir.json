@@ -19,6 +19,13 @@
       "date": "2019 · 夏"
     }
   ],
-  "photos": [],
+  "photos": [
+    {
+      "id": "p1",
+      "src": "media/_test.jpg",
+      "caption": "测试照片（验证加载链路）",
+      "date": "2026"
+    }
+  ],
   "videos": []
 }
