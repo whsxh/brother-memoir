@@ -72,10 +72,27 @@
   };
 
   /* ---------- GitHub 读写 ---------- */
+  // 这个网络下 GitHub 会间歇性断连（ERR_CONNECTION_CLOSED），
+  // 所以所有请求都带重试，失败再退到本地缓存。
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function fetchRetry(url, opts, tries = 3) {
+    let lastErr;
+    for (let i = 0; i < tries; i++) {
+      try {
+        const res = await fetch(url, opts);
+        return res;
+      } catch (e) {
+        lastErr = e;
+        if (i < tries - 1) await sleep(400 * Math.pow(2, i));
+      }
+    }
+    throw lastErr;
+  }
+
   async function gh(method, path, body) {
     const headers = { Accept: "application/vnd.github+json" };
     if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
-    const res = await fetch(API + path, {
+    const res = await fetchRetry(API + path, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined
@@ -135,6 +152,61 @@
 
   const rawUrl = (path) =>
     `https://raw.githubusercontent.com/${cfg.owner}/${cfg.repo}/${cfg.branch}/${path}`;
+
+  /* 媒体加载：raw.githubusercontent 在部分网络会被墙，
+     所以统一走 api.github.com 拿二进制，再转 blob 给 <img>/<video> 用。 */
+  const mediaCache = new Map();
+  const isRemote = (src) => /^https?:|^blob:|^data:/.test(src);
+
+  /* 二进制缓存：断流时用上次下载过的图，省流量也省限额 */
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const r = indexedDB.open("bm-media", 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("blobs");
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+  }
+  async function dbGet(key) {
+    try {
+      const db = await openDB();
+      return await new Promise((resolve) => {
+        const tx = db.transaction("blobs", "readonly").objectStore("blobs").get(key);
+        tx.onsuccess = () => resolve(tx.result || null);
+        tx.onerror = () => resolve(null);
+      });
+    } catch {
+      return null;
+    }
+  }
+  async function dbPut(key, blob) {
+    try {
+      const db = await openDB();
+      db.transaction("blobs", "readwrite").objectStore("blobs").put(blob, key);
+    } catch {}
+  }
+
+  async function mediaSrc(path) {
+    if (isRemote(path)) return path;
+    if (mediaCache.has(path)) return mediaCache.get(path);
+
+    const cached = await dbGet(path);
+    if (cached) {
+      const u = URL.createObjectURL(cached);
+      mediaCache.set(path, u);
+      return u;
+    }
+
+    const headers = { Accept: "application/vnd.github.raw" };
+    if (cfg.token) headers.Authorization = `Bearer ${cfg.token}`;
+    const res = await fetchRetry(`${API}${repoPath()}/contents/${path}?ref=${cfg.branch}`, { headers });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    dbPut(path, blob);
+    const url = URL.createObjectURL(blob);
+    mediaCache.set(path, url);
+    return url;
+  }
 
   /* 缩图：长边 1800，jpeg 0.82 */
   function compressImage(file) {
@@ -260,8 +332,14 @@
       const fig = el("figure", "polaroid");
       const img = el("img");
       img.loading = "lazy";
-      img.src = ph.src.startsWith("http") ? ph.src : rawUrl(ph.src);
       img.alt = ph.caption || "照片";
+      img.style.minHeight = "80px";
+      mediaSrc(ph.src)
+        .then((u) => (img.src = u))
+        .catch(() => {
+          img.alt = "图片加载失败（可能是 GitHub 限额，填令牌可提升）";
+          img.style.minHeight = "120px";
+        });
       const cap = el("figcaption", "cap", ph.caption || "");
       fig.append(img, cap);
 
@@ -296,18 +374,19 @@
     }
     data.videos.forEach((v, idx) => {
       const card = el("article", "reel");
-      const src = v.src.startsWith("http") ? v.src : rawUrl(v.src);
       if (v.kind === "iframe") {
         const f = document.createElement("iframe");
-        f.src = src;
+        f.src = v.src;
         f.allow = "autoplay; fullscreen; picture-in-picture";
         f.allowFullscreen = true;
         card.appendChild(f);
       } else {
         const vid = document.createElement("video");
-        vid.src = src;
         vid.controls = true;
         vid.preload = "metadata";
+        mediaSrc(v.src)
+          .then((u) => (vid.src = u))
+          .catch(() => (vid.poster = ""));
         card.appendChild(vid);
       }
       const meta = el("div", "meta");
@@ -482,6 +561,7 @@
   };
 
   /* 启动 */
+  let retryTimer = null;
   async function boot() {
     renderAll();
     status("读取中…", true);
@@ -496,7 +576,17 @@
         status("仓库里还没有内容，编辑后自动创建");
       }
     } catch (e) {
-      status("读取失败：" + e.message + "，先用本机数据", true);
+      const offline = /Failed to fetch|ERR_|NetworkError|network/i.test(e.message);
+      status(
+        offline
+          ? "网络断了：先显示上次内容，20 秒后自动重试"
+          : "读取失败：" + e.message,
+        true
+      );
+      if (offline) {
+        clearTimeout(retryTimer);
+        retryTimer = setTimeout(boot, 20000);
+      }
     }
   }
 
