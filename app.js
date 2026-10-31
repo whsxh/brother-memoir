@@ -91,7 +91,7 @@
     return res.status === 204 ? null : res.json();
   }
 
-  const repoPath = () => `/${cfg.owner}/${cfg.repo}`;
+  const repoPath = () => `/repos/${cfg.owner}/${cfg.repo}`;
 
   async function readManifest() {
     try {
