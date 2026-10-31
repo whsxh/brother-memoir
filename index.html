@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>兄弟回忆录</title>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div class="grain"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="dot"></span>
+    <span id="brandText">兄弟回忆录</span>
+  </div>
+  <div class="actions">
+    <span id="status" class="status">读取中…</span>
+    <button id="btnEdit" class="btn ghost">编辑模式</button>
+    <button id="btnSettings" class="btn ghost" title="连接设置">⚙</button>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="hero-kicker" id="heroKicker" contenteditable="false">EST. 那段一起疯的日子</p>
+      <h1 id="heroTitle" contenteditable="false">兄弟回忆录</h1>
+      <p id="heroSub" class="hero-sub" contenteditable="false">写给我们一起走过的那些年</p>
+      <div id="crewChips" class="chips"></div>
+    </div>
+    <div class="hero-fade"></div>
+  </section>
+
+  <section class="block" id="secTexts">
+    <div class="block-head">
+      <h2>文字区</h2>
+      <p class="hint">那些没写进日记、但一直记得的事</p>
+      <button class="btn add" data-add="text">＋ 写一条</button>
+    </div>
+    <div class="text-grid" id="textGrid"></div>
+  </section>
+
+  <section class="block" id="secPhotos">
+    <div class="block-head">
+      <h2>照片区</h2>
+      <p class="hint">翻拍、截图、老照片，都放这儿</p>
+      <label class="btn add">
+        ＋ 传照片
+        <input type="file" id="photoInput" accept="image/*" multiple hidden />
+      </label>
+    </div>
+    <div class="photo-wall" id="photoWall"></div>
+  </section>
+
+  <section class="block" id="secVideos">
+    <div class="block-head">
+      <h2>视频区</h2>
+      <p class="hint">有大视频建议填外链（B 站、网盘直链），仓库放不下</p>
+      <label class="btn add">
+        ＋ 传视频
+        <input type="file" id="videoInput" accept="video/*" hidden />
+      </label>
+      <button class="btn ghost" id="btnAddVideoLink">＋ 加外链</button>
+    </div>
+    <div class="video-grid" id="videoGrid"></div>
+  </section>
+
+  <footer class="foot">
+    <p>存于 GitHub · <span id="repoLabel">—</span></p>
+    <p class="tiny">内容修改后会自动提交到仓库；没有填写令牌时只保存在本机浏览器。</p>
+  </footer>
+</main>
+
+<!-- 设置弹窗 -->
+<div class="modal" id="modal" hidden>
+  <div class="modal-card">
+    <h3>连接 GitHub</h3>
+    <p class="tiny">令牌只存在你本机浏览器，不会上传到任何服务器。建议用 Fine-grained token，只勾这一个仓库的 <code>Contents: Read and write</code>。</p>
+    <label>仓库所有者 <input id="cfgOwner" placeholder="whsxh" /></label>
+    <label>仓库名 <input id="cfgRepo" placeholder="brother-memoir" /></label>
+    <label>分支 <input id="cfgBranch" placeholder="main" /></label>
+    <label>访问令牌 <input id="cfgToken" type="password" placeholder="github_pat_..." /></label>
+    <div class="modal-actions">
+      <button class="btn ghost" id="btnCancelCfg">取消</button>
+      <button class="btn" id="btnSaveCfg">保存</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="hiddenUpload" hidden />
+<script src="./app.js"></script>
+</body>
+</html>
